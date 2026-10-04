@@ -1,0 +1,150 @@
+package storage
+
+import (
+	"bytes"
+	"errors"
+	"testing"
+	"time"
+
+	"webhookhub/internal/model"
+)
+
+func TestPayloadSearch(t *testing.T) {
+	db := openTestDB(t)
+	truncateTestTables(t, db)
+	hooks := []model.Webhook{
+		{Source: "json", Payload: []byte(`{"event":"Payment", "message":"Привет мир"}`)},
+		{Source: "empty", Payload: []byte{}},
+		{Source: "binary", Payload: []byte{0xff, 0xfe}},
+		{Source: "nul", Payload: []byte("payment\x00")},
+		{Source: "payment-source", Payload: []byte{0xff}},
+	}
+	for i := range hooks {
+		hooks[i].Status = "success"
+		hooks[i].ReceivedAt = time.Now()
+		if err := db.Save(&hooks[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Existing records must be searchable after reinitializing the function.
+	if err := initPayloadSearch(db.conn); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, test := range []struct {
+		query string
+		want  int
+	}{
+		{query: "payment", want: 2},
+		{query: "PAYMENT", want: 2},
+		{query: "Привет", want: 1},
+		{query: "ПРИВЕТ", want: 1},
+		{query: "missing", want: 0},
+	} {
+		t.Run(test.query, func(t *testing.T) {
+			filter := WebhookFilter{Query: test.query}
+			list, err := db.Filtered(filter, 10, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			count, err := db.CountFiltered(filter)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(list) != test.want || count != test.want {
+				t.Fatalf("want %d matches, got list=%d count=%d", test.want, len(list), count)
+			}
+		})
+	}
+	for _, hook := range hooks {
+		stored, err := db.FindByID(int(hook.ID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(stored.Payload, hook.Payload) {
+			t.Fatalf("payload changed for %s", hook.Source)
+		}
+	}
+}
+
+func TestPayloadSearchEscapesWildcards(t *testing.T) {
+	db := openTestDB(t)
+	truncateTestTables(t, db)
+	hooks := []model.Webhook{
+		{Source: "percent", Payload: []byte(`{"discount":"50%"}`)},
+		{Source: "underscore", Payload: []byte(`field_name=value`)},
+		{Source: "backslash", Payload: []byte(`C:\temp\file`)},
+		{Source: "plain", Payload: []byte(`50 percent off`)},
+	}
+	for i := range hooks {
+		hooks[i].Status = "success"
+		hooks[i].ReceivedAt = time.Now()
+		if err := db.Save(&hooks[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, test := range []struct {
+		query string
+		want  int
+	}{
+		{query: `50%`, want: 1},
+		{query: `%`, want: 1},
+		{query: `_`, want: 1},
+		{query: `\`, want: 1},
+		{query: `field_name`, want: 1},
+	} {
+		t.Run(test.query, func(t *testing.T) {
+			filter := WebhookFilter{Query: test.query}
+			list, err := db.Filtered(filter, 10, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(list) != test.want {
+				t.Fatalf("want %d matches for %q, got %d", test.want, test.query, len(list))
+			}
+		})
+	}
+}
+
+func TestFindByID(t *testing.T) {
+	db := openTestDB(t)
+	truncateTestTables(t, db)
+	hook := model.Webhook{Source: "inspect", Status: "pending", ReceivedAt: time.Now()}
+	if err := db.Save(&hook); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := db.FindByID(int(hook.ID))
+	if err != nil || stored.ID != hook.ID {
+		t.Fatalf("expected webhook %d, got %+v, err=%v", hook.ID, stored, err)
+	}
+	for _, id := range []int{0, -1, int(hook.ID) + 1} {
+		if _, err := db.FindByID(id); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("id %d: expected not found, got %v", id, err)
+		}
+	}
+}
+
+func TestFilterDateBoundaries(t *testing.T) {
+	db := openTestDB(t)
+	truncateTestTables(t, db)
+	from := time.Date(2026, 9, 16, 0, 0, 0, 0, time.UTC)
+	to := from.AddDate(0, 0, 1)
+	for _, timestamp := range []time.Time{from.Add(-time.Microsecond), from, to.Add(-time.Microsecond), to} {
+		if err := db.Save(&model.Webhook{Source: "utc", Status: "success", ReceivedAt: timestamp}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	filter := WebhookFilter{Source: "utc", From: &from, To: &to, Sort: "received_asc"}
+	hooks, err := db.Filtered(filter, 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count, err := db.CountFiltered(filter)
+	if err != nil || count != 2 || len(hooks) != 2 {
+		t.Fatalf("range [from,to): count=%d rows=%d err=%v", count, len(hooks), err)
+	}
+	if !hooks[0].ReceivedAt.Equal(from) || !hooks[1].ReceivedAt.Equal(to.Add(-time.Microsecond)) {
+		t.Fatal("incorrect date boundaries")
+	}
+}

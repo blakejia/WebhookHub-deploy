@@ -1,0 +1,39 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{block "title" .}}WebhookHub{{end}}</title>
+  <script src="/static/htmx.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="navbar">
+  <div class="brand-group">
+    <a href="/" hx-boost="true" class="brand-mark">WH</a>
+    <div>
+      <a href="/" hx-boost="true" class="brand-name">WebhookHub</a>
+      <div class="brand-subtitle">Receive, inspect and deliver webhooks with full traceability.</div>
+    </div>
+  </div>
+
+  <nav class="nav-links" aria-label="Primary">
+    <a href="/" hx-boost="true" class="nav-link">Home</a>
+    <a href="/dashboard" hx-boost="true" class="nav-link">Webhook Logs</a>
+    <a href="/dlq" hx-boost="true" class="nav-link">DLQ</a>
+    <a href="/forwarding" hx-boost="true" class="nav-link">Forwarding Rules</a>
+  </nav>
+
+  <form action="/logout" method="POST">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button class="btn-secondary" type="submit">Logout</button>
+  </form>
+</header>
+
+<main class="container">
+  {{block "content" .}}{{end}}
+</main>
+</body>
+</html>
+{{end}}

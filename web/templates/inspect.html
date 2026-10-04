@@ -1,0 +1,44 @@
+{{define "title"}}Webhook #{{.Webhook.ID}} – WebhookHub{{end}}
+{{define "content"}}
+<article id="inspect-page">
+  <section class="page-header">
+    <a href="{{.ReturnURL}}" class="action-link">Back to logs</a>
+    <h1>Webhook #{{.Webhook.ID}}</h1>
+    <div class="detail-grid">
+      <div class="detail-card">
+        <span class="detail-label">Source</span>
+        <strong class="wrap-text">{{.Webhook.Source}}</strong>
+      </div>
+      <div class="detail-card">
+        <span class="detail-label">Received at</span>
+        <strong>{{.Webhook.ReceivedAt.UTC.Format "2006-01-02 15:04:05 UTC"}}</strong>
+      </div>
+    </div>
+    <a href="/webhooks/{{.Webhook.ID}}/payload" class="action-link" download>Download payload</a>
+  </section>
+
+  <section class="panel" aria-labelledby="headers-title">
+    <h2 id="headers-title">Request headers</h2>
+    {{if .HeadersError}}
+    <p class="inspect-error">Stored headers could not be decoded.</p>
+    <pre class="code-block">{{.Webhook.Headers}}</pre>
+    {{else if .Headers}}
+    <dl class="inspect-headers">
+      {{range $name, $values := .Headers}}
+      <dt>{{$name}}</dt>
+      <dd>{{range $values}}<div>{{.}}</div>{{end}}</dd>
+      {{end}}
+    </dl>
+    {{else}}
+    <p class="muted">No request headers.</p>
+    {{end}}
+  </section>
+
+  {{template "inspect-body" .Payload}}
+
+  <p id="inspect-action-message" role="status" aria-live="polite"></p>
+  <p id="inspect-refresh-message" role="status" aria-live="polite"></p>
+  {{template "inspect-delivery" .}}
+</article>
+<script src="/static/inspect.js" defer></script>
+{{end}}

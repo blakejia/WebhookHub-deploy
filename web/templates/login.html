@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login – WebhookHub</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="login-page">
+  <div class="login-container">
+    <span class="eyebrow">Secure access</span>
+    <h1>Login to WebhookHub</h1>
+    <p class="lead">Use the admin account to inspect traffic, manage forwarding and replay deliveries.</p>
+
+    <form method="POST" action="/login" class="login-form">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <label>Username
+        <input type="text" name="username" required />
+      </label>
+      <label>Password
+        <input type="password" name="password" required />
+      </label>
+      <button type="submit" class="btn-primary">Login</button>
+    </form>
+  </div>
+</body>
+</html>

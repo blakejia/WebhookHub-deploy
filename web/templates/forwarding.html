@@ -1,0 +1,124 @@
+{{define "title"}}Forwarding Rules – WebhookHub{{end}}
+
+{{define "content"}}
+<section class="page-header">
+  <span class="eyebrow">Routing</span>
+  <h1>Forwarding Rules</h1>
+  <p class="lead">Configure where each webhook source should be delivered and how signatures are verified or generated.</p>
+</section>
+
+<section class="panel">
+<form method="POST" action="/forwarding/save" class="rule-form">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+
+  <div class="section">
+    <div class="section-title">Routing</div>
+    <div class="fields grid-2">
+      <input type="text" name="source" placeholder="Webhook source (e.g., stripe)" required>
+      <input type="url"  name="target" placeholder="Target URL (https://...)" required>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Incoming HMAC <span class="muted">(Stripe-style, optional)</span></div>
+    <div class="fields">
+      <input type="password"
+             name="verify_secret"
+             placeholder="Stripe signing secret (whsec_...)"
+             autocomplete="off" data-lpignore="true">
+      <div class="fields grid-2">
+        <input type="text"
+               name="verify_header"
+               placeholder="Signature header (default: Stripe-Signature)">
+        <input type="number"
+               name="tolerance"
+               placeholder="Time tolerance, seconds (default: 300)"
+               min="0" step="1">
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Sign outgoing <span class="muted">(optional)</span></div>
+    <div class="fields grid-2">
+      <input type="password"
+             name="outgoing_secret"
+             placeholder="Secret to sign outgoing deliveries"
+             autocomplete="off" data-lpignore="true">
+      <input type="text" disabled
+             placeholder="Header: X-WebhookHub-Signature (t=..., v1=...)">
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Delivery retry policy</div>
+    <div class="fields grid-2">
+      <input type="number"
+             name="retry_max_attempts"
+             placeholder="Max attempts (default: 3)"
+             min="1" step="1">
+      <input type="number"
+             name="retry_backoff_seconds"
+             placeholder="Initial backoff in seconds (default: 2)"
+             min="1" step="1">
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn-primary" type="submit">Add Rule</button>
+  </div>
+</form>
+</section>
+
+<section class="panel">
+<div class="section-header">
+  <div>
+    <span class="eyebrow">Configured targets</span>
+    <h2>Current rules</h2>
+  </div>
+</div>
+
+<table class="data-table">
+  <thead>
+  <tr>
+    <th>Source</th>
+    <th>Target URL</th>
+    <th>Retry Policy</th>
+    <th>Incoming HMAC</th>
+    <th>Outgoing HMAC</th>
+    <th>Action</th>
+  </tr>
+  </thead>
+  <tbody>
+  {{range .Rules}}
+  <tr>
+    <td><span class="source-badge">{{.Source}}</span></td>
+    <td class="wrap-text">{{.Target}}</td>
+    <td>{{if gt .RetryMaxAttempts 0}}{{.RetryMaxAttempts}}{{else}}3{{end}} attempts / {{if gt .RetryBackoffSeconds 0}}{{.RetryBackoffSeconds}}{{else}}2{{end}}s backoff</td>
+    <td>{{if .VerifySecret}}✓ ({{if .VerifyHeader}}{{.VerifyHeader}}{{else}}Stripe-Signature{{end}}, {{if gt .ToleranceSeconds 0}}{{.ToleranceSeconds}}s{{else}}no time check{{end}}){{else}}—{{end}}</td>
+    <td>{{if .OutgoingSecret}}✓{{else}}—{{end}}</td>
+    <td>
+      <div class="action-buttons">
+        <button
+                class="btn-edit"
+                hx-get="/forwarding/edit?source={{.Source}}"
+                hx-target="#edit-form"
+                hx-swap="innerHTML"
+                type="button"
+        >Edit</button>
+
+        <form method="POST" action="/forwarding/delete" onsubmit="return confirm('Delete this rule?')">
+          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+          <input type="hidden" name="source" value="{{.Source}}">
+          <button class="btn-delete" type="submit">Delete</button>
+        </form>
+      </div>
+    </td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+</section>
+
+<div id="edit-form" class="panel panel-spaced"></div>
+{{end}}

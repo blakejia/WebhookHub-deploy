@@ -1,0 +1,52 @@
+name: webhookhub
+
+# WebhookHub —— 通用 webhook 接收网关（接收 → 记录 → 转发）
+#
+# 选它的原因（2026-10-04）：
+#   Hook0 / Svix 都是「Webhook PROVIDER」（我发给别人），
+#   接不了 Gitea 这类外部推送（它们要 Authorization 头 + 规整 payload 结构）。
+#   WebhookHub 是「Receiver」：POST /hook/:source 免鉴权收，payload 原样透传。
+#
+# 改动（相对官方 compose）：
+#   ① 去掉自带 postgres —— 复用 10.0.0.88:15432（db=webhookhub）
+#   ② 改build 为 Portainer stack build（官方无预构建镜像）
+#   ③ 只暴露 8080；UI 和接收端点同一个端口
+#
+# ⚠️ 许可 AGPL-3.0 —— 内网自用无限制；若将来对外提供改过的版本需开源
+# ⚠️ 项目仅 7 star，生产验证少；主流程简单（收→存→转发）风险可控
+
+services:
+  webhookhub:
+    build:
+      context: https://github.com/Paramoshka/WebhookHub.git
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8083:8080"
+    environment:
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      SESSION_KEY: ${SESSION_KEY}
+      COOKIE_SECURE: "true"
+      # 经NPM 单层反代，信任 X-Forwarded-For 里的真实客户端 IP
+      TRUST_PROXY_HEADERS: "true"
+      POSTGRES_DB: webhookhub
+      POSTGRES_USER: webhookhub
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_HOST: 10.0.0.88
+      POSTGRES_PORT: "15432"
+      POSTGRES_SSLMODE: disable
+      PORT: "8080"
+      MAX_BODY_BYTES: "1048576"
+      DELIVERY_WORKERS: "4"
+      RETENTION_ENABLED: "true"
+      RETENTION_DAYS: "30"
+    extra_hosts:
+      - "pg.1024.center:10.0.0.88"
+    healthcheck:
+      test: ["CMD", "/app/webhookhub", "healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    stop_grace_period: 15s

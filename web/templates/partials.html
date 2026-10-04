@@ -1,0 +1,57 @@
+{{if .Webhooks}}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Source</th>
+      <th>Received At</th>
+      <th>Status</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Webhooks}}
+    <tr id="webhook-{{.ID}}">
+      <td class="table-id">#{{.ID}}</td>
+      <td><span class="source-badge">{{.Source}}</span></td>
+      <td>{{.ReceivedAt}}</td>
+      <td><span class="status-chip status-{{.Status}}">{{.Status}}</span></td>
+      <td>
+        <div class="table-actions">
+          {{if eq .Status "processing"}}
+          <span class="status-chip status-processing">In progress</span>
+          {{else}}
+          <button type="button" data-webhook-action="replay" data-webhook-id="{{.ID}}"
+            hx-post="/api/webhooks/replay?id={{.ID}}"
+            hx-headers='{"X-CSRF-Token":"{{$.CSRFToken}}"}'
+            hx-swap="none"
+            hx-sync="this:drop"
+            hx-trigger="click"
+            class="action-link"
+          >Retry</button>
+          {{end}}
+
+          <a href="/webhooks/{{.ID}}?return_to={{urlquery $.CurrentPageURL}}" target="_blank" class="action-link">Inspect</a>
+
+          {{if ne .Status "processing"}}
+          <button type="button" data-webhook-action="delete" data-webhook-id="{{.ID}}"
+            hx-confirm="Delete this webhook?"
+            hx-post="/api/webhooks/delete?id={{.ID}}"
+            hx-headers='{"X-CSRF-Token":"{{$.CSRFToken}}"}'
+            hx-swap="none"
+            hx-sync="this:drop"
+            class="action-link action-link-danger"
+          >Delete</button>
+          {{end}}
+        </div>
+      </td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="empty-state">
+  <h3>No webhooks yet</h3>
+  <p>Send a request to `/hook/:source` and it will appear here with delivery details.</p>
+</div>
+{{end}}
